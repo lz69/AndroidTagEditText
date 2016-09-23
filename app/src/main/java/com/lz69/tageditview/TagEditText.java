@@ -1,11 +1,14 @@
 package com.lz69.tageditview;
 
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.Spannable;
 import android.text.SpannableString;
@@ -20,9 +23,17 @@ import java.util.List;
 
 public class TagEditText extends EditText{
 
-    private String bgColor = "#22bd7a";
+    private int bgColor;
 
-    final float scale = getContext().getResources().getDisplayMetrics().density;
+    private int DEFAULT_BG_COLOR = Color.parseColor("#22BD7A");
+
+    private int tagTextColor;
+
+    private int DEFAULT_TAG_TEXT_COLOR = Color.parseColor("#FFFFFF");
+
+    private int SHADOW_DEEP = 3;
+
+    protected final float SCALE = getContext().getResources().getDisplayMetrics().density;
 
     private List<String> tags = new ArrayList<String>();
 
@@ -30,24 +41,36 @@ public class TagEditText extends EditText{
 
     public TagEditText(Context context) {
         super(context);
+        init(null, 0);
     }
 
     public TagEditText(Context context, AttributeSet attrs) {
         super(context, attrs);
-        init();
+        init(attrs, 0);
     }
 
     public TagEditText(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init();
+        init(attrs, defStyleAttr);
     }
 
-    private void init() {
+    private void init(AttributeSet attrs, int defStyleAttr) {
+        final TypedArray attrArray = getContext().obtainStyledAttributes(attrs, R.styleable.TagEditText, defStyleAttr, 0);
+
+        initAttributes(attrArray);
+
+        attrArray.recycle();
+
         addOwnTextWatcher();
     }
 
     private void addOwnTextWatcher(){
         addTextChangedListener(myTextWatcher);
+    }
+
+    protected void initAttributes(TypedArray attrArray) {
+        bgColor = attrArray.getColor(R.styleable.TagEditText_bgColor, DEFAULT_BG_COLOR);
+        tagTextColor = attrArray.getColor(R.styleable.TagEditText_tagTextColor, DEFAULT_TAG_TEXT_COLOR);
     }
 
     private TextWatcher myTextWatcher = new TextWatcher() {
@@ -90,7 +113,7 @@ public class TagEditText extends EditText{
 
                 tags.add(newTag);
 
-                //先生称SpannableString
+                //先生成SpannableString
                 String allTag = "";
                 for (String tag:tags) {
                     allTag += tag;
@@ -128,74 +151,53 @@ public class TagEditText extends EditText{
     }
 
     private Bitmap getTextBitmap(String tag) {
-        int length = tag.length();
-        int halfCharLength = getHalfcharCount(tag);
-        int hanCharLength = length - halfCharLength;
-        int bitmapWidth = (int) ((tagTextSize * hanCharLength + halfCharLength * tagTextSize * 3 / 4 + tagTextSize * 2) * scale);
-        int bitmapHeight = (int) ((tagTextSize * 2 + tagTextSize / 2) * scale);
-        Bitmap bitmap = Bitmap.createBitmap(
-                bitmapWidth,
-                bitmapHeight,
-                Bitmap.Config.ARGB_8888);
+
+        Paint textPaint = new Paint();
+        textPaint.setAntiAlias(true);
+        textPaint.setTextSize(tagTextSize * SCALE);
+        textPaint.setColor(tagTextColor);
+        textPaint.setSubpixelText(true);
+        Typeface tf = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD);
+
+        textPaint.setTypeface(tf);
+
+        Rect textRect = new Rect();
+        textPaint.getTextBounds(tag, 0, tag.length(), textRect);
+        int textBoundLeft = textRect.left;
+        int textBoundRight = textRect.right;
+        int textBoundTop = textRect.top;
+        int textBoundBottom = textRect.bottom;
+
+        int cornerRadius = (int) (tagTextSize * SCALE);
+        int tagPaddingHorizontal = (int) (10 * SCALE);
+
+        int tagPaddingVertical = (int) (10 * SCALE);
+
+        int tagTextPaddingHorizontal = (int) (tagTextSize * SCALE);
+
+        int tagTextPaddingVertical = (int) (tagTextSize / 2 * SCALE);
+
+        int bitmapWidth = (tagPaddingHorizontal + tagTextPaddingHorizontal) * 2 + (textBoundRight - textBoundLeft);
+
+        int bitmapHeight = (textBoundBottom - textBoundTop) + tagPaddingVertical * 2 + tagTextPaddingVertical * 2;
+
+        Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
-        Paint paint = new Paint();
-        paint.setAntiAlias(true);
 
-        String tagBgColor = "#22bd7a";
-
-        paint.setColor(Color.parseColor(bgColor));
-
-        int tagPaddingHorizontal = (int) (10 * scale);
-        int tagPaddingVertical = (int) (10 * scale);
+        Paint bgPaint = new Paint();
+        bgPaint.setAntiAlias(true);
+        bgPaint.setColor(bgColor);
         int bgLeft = tagPaddingHorizontal;
         int bgTop = tagPaddingVertical;
-        int bgRight = (int) (bitmapWidth - bgLeft);
-        int bgBottom = (int)(bitmapHeight - bgTop);
-        int cornerRadius = (int) (tagTextSize * scale);
-        canvas.drawRoundRect(new RectF(bgLeft, bgTop, bgRight, bgBottom),
-                cornerRadius,
-                cornerRadius,
-                paint);
+        int bgRight = bitmapWidth - bgLeft;
+        int bgBottom = bitmapHeight - bgTop;
+        bgPaint.setShadowLayer(30, SHADOW_DEEP * SCALE, SHADOW_DEEP * SCALE, Color.parseColor("#BBBBBB"));
+        canvas.drawRoundRect(new RectF(bgLeft, bgTop, bgRight, bgBottom), cornerRadius, cornerRadius, bgPaint);
 
-        String tagTextColor = "#ffffff";
-
-        paint.setColor(Color.parseColor(tagTextColor));
-        paint.setTextSize(tagTextSize * scale);
-
-        int tagTextPaddingHorizontal = (int) (tagTextSize * scale);
-        int tagTextPaddingVertical = (int) (20 * scale);
-        int xTagText = tagPaddingHorizontal + tagTextPaddingHorizontal;
-        int yTagText = tagPaddingVertical + tagTextPaddingVertical;
-        canvas.drawText(
-                tag,
-                xTagText,
-                yTagText,
-                paint);
+        int xTagText = -textBoundLeft + tagPaddingHorizontal + tagTextPaddingHorizontal;
+        int yTagText = -textBoundTop + tagPaddingVertical + tagTextPaddingVertical;
+        canvas.drawText(tag, xTagText, yTagText, textPaint);
         return bitmap;
-    }
-
-    private int getHalfcharCount(String str) {
-        int count = 0;
-        for(int i = 0; i < str.length(); i++) { //循环遍历字符串
-            char c = str.charAt(i);
-            if (c < 0xFF) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    @Override
-    public float getTextSize() {
-        return super.getTextSize();
-    }
-
-    /**
-     * 根据手机的分辨率从 dp 的单位 转成为 px(像素)
-     */
-    private int dip2px(float dpValue) {
-        final float scale = getContext().getResources().getDisplayMetrics().density;
-        return (int) (dpValue * scale + 0.5f);
     }
 
 }
